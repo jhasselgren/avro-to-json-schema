@@ -1,3 +1,4 @@
+import * as _ from 'lodash'
 export {
     EnumType,
     Field,
@@ -30,38 +31,48 @@ export function convertPrimitive(avroType: string): string {
     switch (avroType) {
         case "long":
         case "int":
+          return "Type.Integer()"
         case "double":
         case "float":
-            return "number";
+            return "Type.Number()";
         case "bytes":
-            return "Buffer";
+            return "Type.Unknown()";
         case "null":
-            return "null | undefined";
+            return "Type.Null()";
         case "boolean":
-            return "boolean";
+            return "Type.Boolean()";
+        case "string":
+          return "Type.String()";
         default:
             return null;
     }
 }
 
 /** Converts an Avro record type to a TypeScript file */
-export function avroToTypeScript(schema: Schema): string {
+export function avroToJSONSchema(schema: Schema): { file: string, dependencies: string[], records: string[] } {
     const output: string[] = [];
+    const dependencies: string[] = [];
+    const records: string[] = [];
     if (isEnumType(schema)) convertEnum(schema, output);
-    else if (isRecordType(schema)) convertRecord(schema, output);
+    else if (isRecordType(schema)) convertRecord(schema, output, dependencies, records);
     else throw "Unknown top level type " + (schema as unknown)["type"];
-    return output.join("\n");
+    return {file: output.join("\n"), dependencies, records};
 }
 
+
+
 /** Convert an Avro Record type. Return the name, but add the definition to the file */
-export function convertRecord(recordType: RecordType, fileBuffer: string[]): string {
-    let buffer = `export interface ${recordType.name} {\n`;
+export function convertRecord(recordType: RecordType, fileBuffer: string[], dependencies: string[], records: string[]): string {
+    const schemaName = _.camelCase(recordType.name+'Schema');
+    let buffer = `export const ${schemaName} = Type.Object({\n`;
     for (let field of recordType.fields) {
-        buffer += convertFieldDec(field, fileBuffer) + "\n";
+        buffer += convertFieldDec(field, fileBuffer, dependencies, records) + "\n";
     }
-    buffer += "}\n";
+    buffer += "})\n";
+    buffer += `export type ${recordType.name} = Static<typeof ${schemaName}>;`
     fileBuffer.push(buffer);
-    return recordType.name;
+    records.push(schemaName)
+    return schemaName;
 }
 
 /** Convert an Avro Enum type. Return the name, but add the definition to the file */
@@ -71,35 +82,43 @@ export function convertEnum(enumType: EnumType, fileBuffer: string[]): string {
     return enumType.name;
 }
 
-export function convertType(type: Type, buffer: string[]): string {
+export function convertType(type: Type, buffer: string[], dependencies: string[], records: string[]): string {
     // if it's just a name, then use that
     if (typeof type === "string") {
-        return convertPrimitive(type) || type;
+      const convertedValue = convertPrimitive(type)
+        if(convertedValue){
+          return convertedValue
+        }
+        else {
+          dependencies.push(_.camelCase(type+'Schema'))
+          return _.camelCase(type+'Schema');
+        }
     } else if (type instanceof Array) {
         // array means a Union. Use the names and call recursively
-        return type.map((t) => convertType(t, buffer)).join(" | ");
+        return `Type.Union([${type.map((t) => convertType(t, buffer, dependencies, records)).join(", ")}])`;
     } else if (isRecordType(type)) {
         //} type)) {
         // record, use the name and add to the buffer
-        return convertRecord(type, buffer);
+        return convertRecord(type, buffer, dependencies, records);
     } else if (isArrayType(type)) {
         // array, call recursively for the array element type
-        return convertType(type.items, buffer) + "[]";
+        return `Type.Array(${convertType(type.items, buffer, dependencies, records)})` ;
     } else if (isMapType(type)) {
         // Dictionary of types, string as key
-        return `{ [index:string]:${convertType(type.values, buffer)} }`;
+        return `Type.Dict(${convertType(type.values, buffer, dependencies, records)})`;
     } else if (isEnumType(type)) {
         // array, call recursively for the array element type
-        return convertEnum(type, buffer);
+        return `Type.Enum(${convertEnum(type, buffer)})`;
     } else if (isLogicalType(type)) {
-        return convertType(type.type, buffer);
+        return convertType(type.type, buffer, dependencies, records);
     } else {
         console.error("Cannot work out type", type);
         return "UNKNOWN";
     }
 }
 
-export function convertFieldDec(field: Field, buffer: string[]): string {
+export function convertFieldDec(field: Field, buffer: string[], dependencies: string[], records: string[]): string {
     // Union Type
-    return `\t${field.name}${isOptional(field.type) ? "?" : ""}: ${convertType(field.type, buffer)};`;
-}
+    //return `\t${field.name}${isOptional(field.type) ? "?" : ""}: ${convertType(field.type, buffer)};`;
+    return `\t${field.name}: ${isOptional(field.type) ? `Type.Optional(${convertType(field.type, buffer, dependencies, records)})` : convertType(field.type, buffer, dependencies, records)},`;
+  }

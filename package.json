@@ -1,6 +1,6 @@
 {
-    "name": "avro-typescript",
-    "version": "1.1.0",
+    "name": "avro-to-json-schema",
+    "version": "0.0.1",
     "description": "TypeScript code generator for Apache Avro types",
     "main": "./lib/index.js",
     "typings": "lib/index.d.ts",
@@ -17,7 +17,7 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/joewood/avro-typescript.git"
+        "url": "git+https://github.com/jhasselgren/avro-to-json-schema.git"
     },
     "readme": "README.md",
     "types": "./lib/index.d.ts",
@@ -28,11 +28,12 @@
     "author": "Joe Wood",
     "license": "MIT",
     "bugs": {
-        "url": "https://github.com/joewood/avro-typescript/issues"
+        "url": "https://github.com/jhasselgren/avro-to-json-schema/issues"
     },
-    "homepage": "https://github.com/joewood/avro-typescript#readme",
+    "homepage": "https://github.com/jhasselgren/avro-to-json-schema#readme",
     "devDependencies": {
         "@types/jest": "^26.0.13",
+        "@types/lodash": "^4.14.168",
         "@types/node": "^14.6.4",
         "jest": "^26.4.2",
         "ts-jest": "^26.3.0",
@@ -48,5 +49,9 @@
             "tsx",
             "js"
         ]
+    },
+    "dependencies": {
+        "@sinclair/typebox": "^0.12.7",
+        "lodash": "^4.17.20"
     }
 }
